@@ -158,6 +158,16 @@ if [[ -n "$LOGO_FILE" ]]; then
   cp "$LOGO_FILE" "$OUTPUT_DIR/$dest_logo"
   echo "Adding custom logo (full): $dest_logo"
 
+  python3 -c "
+path = '$OUTPUT_DIR/index.html'
+with open(path) as f: html = f.read()
+html = html.replace(
+    '<meta name=\"description\" content=\"Twitter/X archive viewer\">',
+    '<meta name=\"description\" content=\"Twitter/X archive viewer\">\n  <meta property=\"og:image\" content=\"$dest_logo\">'
+)
+with open(path, 'w') as f: f.write(html)
+"
+
   dest_logo_icon=""
   if [[ -n "$LOGO_ICON_FILE" ]]; then
     icon_ext="${LOGO_ICON_FILE##*.}"
