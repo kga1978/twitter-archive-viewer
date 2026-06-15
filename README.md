@@ -2,8 +2,6 @@
 
 A self-contained viewer for your Twitter/X data archive. Works locally in a browser and can be deployed to any web server — no database, no server-side code, no external dependencies.
 
-![Dark themed viewer with sidebar, tweet timeline, search, and media](https://raw.githubusercontent.com/placeholder/screenshot.png)
-
 ## Features
 
 - Posts and Replies tabs with infinite scroll
