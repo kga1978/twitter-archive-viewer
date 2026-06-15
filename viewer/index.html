@@ -1,0 +1,2079 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Twitter/X archive viewer">
+  <link rel="icon" id="favicon" href="data:,">
+  <title>Twitter Archive</title>
+  <style>
+    /* ── Reset & Variables ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #15202b;
+      --text: #f7f9f9;
+      --text-secondary: #8b98a5;
+      --border: #38444d;
+      --blue: #1d9bf0;
+      --surface: rgba(247,249,249,0.03);
+      --hover: rgba(247,249,249,0.06);
+      --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --left-w: 255px;
+      --center-w: 600px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    button { cursor: pointer; font-family: var(--font); }
+    img { display: block; }
+
+    /* ── Layout ── */
+    .page-wrapper {
+      display: flex;
+      min-height: 100vh;
+      max-width: calc(var(--left-w) + var(--center-w) + 20px);
+      margin: 0 auto;
+      position: relative;
+      justify-content: center;
+    }
+
+    /* ── Left Sidebar ── */
+    .left-sidebar {
+      width: var(--left-w);
+      min-width: var(--left-w);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      padding: 4px 0 20px;
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+    }
+
+    .sidebar-top { display: flex; flex-direction: column; gap: 4px; }
+
+    .sidebar-logo {
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      border-radius: 12px;
+      transition: background 0.15s;
+      text-decoration: none;
+    }
+    .sidebar-logo:hover { background: var(--hover); }
+    .sidebar-logo .logo-full { height: 28px; width: auto; max-width: 200px; display: block; }
+    .sidebar-logo .logo-icon { display: none; height: 32px; width: 32px; object-fit: contain; }
+    .sidebar-logo .logo-custom-full { display: none; height: 28px; width: auto; max-width: 200px; object-fit: contain; }
+    .sidebar-logo .logo-custom-icon { display: none; height: 32px; width: 32px; object-fit: contain; }
+    .sidebar-logo.has-logo .logo-full,
+    .sidebar-logo.has-logo .logo-icon { display: none !important; }
+    .sidebar-logo.has-logo .logo-custom-full { display: block; }
+    .sidebar-nav { display: flex; flex-direction: column; gap: 2px; padding: 0 4px; }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 10px 14px;
+      border-radius: 9999px;
+      background: none;
+      border: none;
+      color: var(--text);
+      font-size: 19px;
+      font-weight: 400;
+      transition: background 0.15s;
+      white-space: nowrap;
+      width: 100%;
+      text-align: left;
+    }
+    .nav-item:hover { background: var(--hover); }
+    .nav-item.active { font-weight: 700; }
+    .nav-item svg { width: 26px; height: 26px; flex-shrink: 0; fill: currentColor; }
+    .nav-label { font-size: 19px; }
+
+
+    .sidebar-filters {
+      margin-top: 20px;
+      padding: 0 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+    }
+    .sidebar-filters .filters-section {
+      border: none;
+      background: none;
+      padding: 0;
+    }
+    .sidebar-filters .filters-section h3 {
+      font-size: 15px;
+      margin-bottom: 10px;
+    }
+    .sidebar-filters .date-row { flex-direction: column; gap: 6px; }
+
+    /* ── Center Column ── */
+    .center-column {
+      width: var(--center-w);
+      min-width: 0;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .center-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(21,32,43,0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    .center-header-text { display: flex; flex-direction: column; }
+    .center-header-name { font-size: 19px; font-weight: 700; line-height: 1.2; }
+    .center-header-count { font-size: 13px; color: var(--text-secondary); }
+
+    .profile-section {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .profile-banner {
+      width: calc(100% + 32px);
+      margin: -16px -16px 0;
+      height: 130px;
+      object-fit: cover;
+      object-position: center top;
+      display: block;
+    }
+    .profile-section.has-banner .profile-top { margin-top: -36px; }
+    .profile-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .profile-avatar {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid var(--bg);
+    }
+    .profile-name { font-size: 20px; font-weight: 700; margin-bottom: 2px; line-height: 1.2; }
+    .profile-handle { font-size: 15px; color: var(--text-secondary); margin-bottom: 10px; }
+    .profile-bio { font-size: 15px; line-height: 1.5; margin-bottom: 10px; }
+    .profile-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 12px;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+    .profile-meta-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .profile-meta-item a { color: var(--blue); }
+    .profile-meta-item svg { width: 16px; height: 16px; fill: var(--text-secondary); flex-shrink: 0; }
+    .profile-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+    .profile-stat { display: flex; gap: 4px; }
+    .profile-stat-val { font-weight: 700; }
+    .profile-stat-label { color: var(--text-secondary); }
+    .archive-notice {
+      font-size: 13px;
+      color: var(--text-secondary);
+      padding: 8px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    /* ── Tab Bar ── */
+    .tab-bar {
+      position: sticky;
+      top: 53px;
+      z-index: 99;
+      display: flex;
+      background: rgba(21,32,43,0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 14px 12px;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-secondary);
+      font-size: 15px;
+      font-weight: 400;
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
+    }
+    .tab-btn:hover { background: var(--hover); color: var(--text); }
+    .tab-btn.active {
+      border-bottom-color: var(--blue);
+      color: var(--text);
+      font-weight: 700;
+    }
+    .tab-count {
+      display: inline-block;
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-left: 5px;
+      font-weight: 400;
+    }
+
+    /* ── Timeline ── */
+    #timeline { display: flex; flex-direction: column; }
+
+    .timeline-empty {
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 16px;
+    }
+
+    /* ── Tweet Card ── */
+    .tweet-card {
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      gap: 12px;
+      transition: background 0.12s;
+      position: relative;
+    }
+    .tweet-card:hover { background: var(--surface); }
+    .tweet-card { cursor: pointer; }
+    .tweet-card.highlighted, .thread-tweet.highlighted {
+      animation: highlight-pulse 1.8s ease-out forwards;
+    }
+    @keyframes highlight-pulse {
+      0%  { background: rgba(29,155,240,0.18); }
+      60% { background: rgba(29,155,240,0.08); }
+      100% { background: transparent; }
+    }
+
+    .tweet-avatar-col { flex-shrink: 0; }
+    .tweet-avatar {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .tweet-body { flex: 1; min-width: 0; }
+
+    .tweet-header {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px 6px;
+      margin-bottom: 2px;
+    }
+    .tweet-name { font-weight: 700; font-size: 15px; white-space: nowrap; }
+    .tweet-handle { color: var(--text-secondary); font-size: 14px; white-space: nowrap; }
+    .tweet-dot { color: var(--text-secondary); font-size: 13px; }
+    .tweet-time {
+      color: var(--text-secondary);
+      font-size: 13px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .tweet-permalink-icon {
+      visibility: hidden;
+      margin-left: 2px;
+      cursor: pointer;
+      color: var(--text-secondary);
+      vertical-align: middle;
+    }
+    .tweet-header:hover .tweet-permalink-icon { visibility: visible; }
+    .tweet-permalink-icon svg { width: 14px; height: 14px; fill: var(--text-secondary); vertical-align: middle; }
+    .permalink-copied {
+      font-size: 12px; color: var(--blue); margin-left: 4px;
+    }
+
+    .tweet-text {
+      font-size: 15px;
+      line-height: 1.5;
+      margin-bottom: 6px;
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+    .tweet-text a { color: var(--blue); }
+    .tweet-text a:hover { text-decoration: underline; }
+
+    /* ── Reply-to reference ── */
+    .reply-ref {
+      margin-bottom: 8px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      font-size: 13px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .reply-ref:hover { background: var(--hover); }
+    .reply-ref-handle { font-weight: 700; color: var(--blue); margin-bottom: 4px; }
+    .reply-ref-text {
+      color: var(--text);
+      font-size: 14px;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .reply-ref-unavailable { color: var(--text-secondary); font-style: italic; }
+    .reply-ref-link {
+      font-size: 12px;
+      color: var(--blue);
+      margin-top: 4px;
+      display: block;
+    }
+
+    /* ── Media grid ── */
+    .media-grid {
+      margin: 8px 0;
+      border-radius: 12px;
+      overflow: hidden;
+      display: grid;
+      gap: 2px;
+    }
+    .media-grid.count-1 { grid-template-columns: 1fr; }
+    .media-grid.count-2 { grid-template-columns: 1fr 1fr; }
+    .media-grid.count-3 { grid-template-columns: 1fr 1fr; }
+    .media-grid.count-4 { grid-template-columns: 1fr 1fr; }
+
+    .media-item { overflow: hidden; position: relative; background: #0a1622; }
+
+    /* Fixed heights prevent layout shift while images load */
+    .media-grid.count-1 .media-item { height: 340px; }
+    .media-grid.count-2 .media-item { height: 280px; }
+    .media-grid.count-3 .media-item:first-child { grid-row: span 2; height: 100%; }
+    .media-grid.count-3 .media-item:not(:first-child) { height: 139px; }
+    .media-grid.count-4 .media-item { height: 145px; }
+
+    .media-item img, .media-item video {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      cursor: pointer;
+      transition: opacity 0.12s;
+    }
+    .media-item img:hover, .media-item video:hover { opacity: 0.88; }
+
+    /* ── Quote tweet ── */
+    .quote-tweet {
+      margin: 8px 0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: var(--surface);
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.12s;
+      text-decoration: none;
+      color: var(--text);
+      display: block;
+    }
+    .quote-tweet:hover { background: var(--hover); text-decoration: none; }
+    .quote-tweet-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+    .quote-tweet-avatar { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; }
+    .quote-tweet-name { font-weight: 700; font-size: 13px; }
+    .quote-tweet-handle { color: var(--text-secondary); font-size: 13px; }
+    .quote-tweet-text { font-size: 14px; color: var(--text); line-height: 1.4; }
+    .quote-tweet-thumb { margin-top: 6px; border-radius: 8px; max-height: 160px; width: 100%; object-fit: cover; display: block; }
+
+    /* ── Thread ── */
+    .thread-toggle {
+      margin: 6px 0 2px;
+      background: none;
+      border: none;
+      color: var(--blue);
+      font-size: 14px;
+      padding: 4px 0;
+      font-weight: 500;
+    }
+    .thread-toggle:hover { text-decoration: underline; }
+
+    .thread-continuation {
+      border-left: 2px solid var(--border);
+      margin-left: 8px;
+      padding-left: 14px;
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .thread-tweet {
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 12px;
+    }
+    .thread-tweet:last-child { border-bottom: none; }
+    .thread-tweet-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+    .thread-tweet-body { flex: 1; min-width: 0; }
+    .thread-tweet-header {
+      display: flex; align-items: center;
+      flex-wrap: wrap; gap: 4px 6px;
+      margin-bottom: 2px;
+    }
+    .thread-tweet-time { font-size: 12px; color: var(--text-secondary); }
+    .thread-tweet-text {
+      font-size: 14px; line-height: 1.5; word-break: break-word;
+      white-space: pre-wrap;
+    }
+    .thread-tweet-text a { color: var(--blue); }
+
+    /* ── Footer ── */
+    .tweet-footer {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-top: 6px;
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+    .tweet-footer-stat {
+      display: flex; align-items: center; gap: 4px;
+    }
+    .tweet-footer-stat svg { width: 16px; height: 16px; fill: var(--text-secondary); }
+    .tweet-footer-link {
+      display: flex; align-items: center; gap: 4px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      margin-left: auto;
+    }
+    .tweet-footer-link:hover { color: var(--blue); }
+    .tweet-footer-link svg { width: 14px; height: 14px; fill: currentColor; }
+
+    #scrollSentinel { height: 1px; }
+
+    .search-input-wrap { position: relative; }
+    #searchInput {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      color: var(--text);
+      font-size: 15px;
+      padding: 10px 16px 10px 42px;
+      outline: none;
+      transition: border-color 0.15s, background 0.15s;
+      font-family: var(--font);
+    }
+    #searchInput:focus {
+      border-color: var(--blue);
+      background: rgba(29,155,240,0.05);
+    }
+    #searchInput::placeholder { color: var(--text-secondary); }
+    .search-icon {
+      position: absolute;
+      left: 14px;
+      top: 0; bottom: 0;
+      display: flex;
+      align-items: center;
+      pointer-events: none;
+    }
+    .search-icon svg { width: 17px; height: 17px; fill: var(--text-secondary); display: block; }
+    #searchCount {
+      display: block;
+      margin-top: 6px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      padding-left: 4px;
+      min-height: 18px;
+    }
+
+    .filters-section {
+      background: rgba(247,249,249,0.04);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px 16px;
+    }
+    .filters-section h3 {
+      font-size: 19px;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+
+    .sort-group { margin-bottom: 16px; }
+    .sort-group-label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+    .sort-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 0;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .sort-option input[type="radio"] {
+      accent-color: var(--blue);
+      width: 15px; height: 15px;
+      cursor: pointer;
+    }
+
+    .date-group { margin-bottom: 14px; }
+    .date-group-label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+    .date-row { display: flex; gap: 8px; }
+    .date-input-wrap { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+    .date-input-label { font-size: 12px; color: var(--text-secondary); }
+    input[type="date"] {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 13px;
+      padding: 6px 8px;
+      outline: none;
+      font-family: var(--font);
+      color-scheme: dark;
+    }
+    input[type="date"]:focus { border-color: var(--blue); }
+
+    #clearFilters {
+      background: none;
+      border: none;
+      color: var(--blue);
+      font-size: 13px;
+      padding: 0;
+      cursor: pointer;
+    }
+    #clearFilters:hover { text-decoration: underline; }
+
+    /* ── Lightbox ── */
+    .lightbox {
+      position: fixed; inset: 0; z-index: 1000;
+      background: rgba(0,0,0,0.88);
+      display: flex; align-items: center; justify-content: center;
+      cursor: zoom-out;
+    }
+    .lightbox img, .lightbox video {
+      max-width: 95vw; max-height: 95vh;
+      object-fit: contain;
+      cursor: default;
+      border-radius: 4px;
+    }
+    .lightbox-close {
+      position: absolute; top: 16px; right: 20px;
+      color: #fff; font-size: 32px; cursor: pointer;
+      background: none; border: none; line-height: 1;
+      opacity: 0.8;
+    }
+    .lightbox-close:hover { opacity: 1; }
+
+    /* ── Inline filters (shown when right sidebar is hidden) ── */
+    .inline-filters {
+      display: none;
+      padding: 10px 16px;
+      gap: 10px;
+      border-bottom: 1px solid var(--border);
+      align-items: center;
+      background: var(--bg);
+    }
+    .inline-search-wrap { flex: 1; position: relative; }
+    .inline-search-wrap input[type="search"] {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      color: var(--text);
+      font-size: 14px;
+      padding: 8px 14px 8px 36px;
+      outline: none;
+      font-family: var(--font);
+    }
+    .inline-search-wrap input[type="search"]:focus { border-color: var(--blue); }
+    .inline-search-wrap input[type="search"]::placeholder { color: var(--text-secondary); }
+    .inline-search-icon {
+      position: absolute; left: 12px; top: 50%;
+      transform: translateY(-50%); pointer-events: none;
+    }
+    .inline-search-icon svg { width: 14px; height: 14px; fill: var(--text-secondary); }
+    .inline-sort-select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      color: var(--text);
+      font-size: 13px;
+      padding: 7px 14px;
+      outline: none;
+      font-family: var(--font);
+      cursor: pointer;
+      flex-shrink: 0;
+      color-scheme: dark;
+    }
+
+    /* ── Responsive: medium screens ── */
+    @media (max-width: 900px) {
+      :root { --left-w: 68px; }
+      .nav-label { display: none; }
+      .nav-item { justify-content: center; padding: 12px; gap: 0; }
+      .sidebar-logo { margin: 0 auto; }
+      .sidebar-logo .logo-full { display: none; }
+      .sidebar-logo .logo-icon { display: block; }
+      .sidebar-logo.has-logo .logo-custom-full { display: none; }
+      .sidebar-logo.has-logo .logo-custom-icon { display: block; }
+      .sidebar-filters { display: none; }
+      .inline-filters { display: flex !important; }
+    }
+
+    /* ── Responsive: small screens ── */
+    @media (max-width: 700px) {
+      :root { --left-w: 0px; --center-w: 100vw; }
+      .left-sidebar { display: none; }
+      .center-column { border-right: none; }
+      .bottom-nav { display: flex !important; }
+    }
+
+    /* ── Bottom Nav (mobile) ── */
+    .bottom-nav {
+      display: none;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+      z-index: 200;
+      justify-content: space-around;
+      padding: 8px 0;
+    }
+    .bottom-nav-btn {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 2px;
+      background: none; border: none;
+      color: var(--text-secondary);
+      font-size: 11px;
+      padding: 6px 16px;
+    }
+    .bottom-nav-btn.active { color: var(--blue); }
+    .bottom-nav-btn svg { width: 24px; height: 24px; fill: currentColor; }
+  </style>
+</head>
+<body>
+
+<div class="page-wrapper">
+
+  <!-- ── Left Sidebar ── -->
+  <aside class="left-sidebar">
+    <div class="sidebar-top">
+      <div class="sidebar-logo">
+        <img class="logo-icon" id="sidebarAvatarImg" src="" alt="" style="display:none; border-radius:50%;">
+        <span class="logo-full" id="sidebarHandle" style="font-size:15px; font-weight:700; color:var(--text);"></span>
+        <img class="logo-custom-full" id="sidebarLogoFull" src="" alt="logo">
+        <img class="logo-custom-icon" id="sidebarLogoIcon" src="" alt="logo">
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-tab="posts" id="leftNavPosts">
+          <svg viewBox="0 0 24 24"><path d="M12 1.696L.622 8.807l1.06 1.696L3 9.679V19.5C3 20.881 4.119 22 5.5 22h13c1.381 0 2.5-1.119 2.5-2.5V9.679l1.318.824 1.06-1.696L12 1.696zM12 16.5c-1.933 0-3.5-1.567-3.5-3.5s1.567-3.5 3.5-3.5 3.5 1.567 3.5 3.5-1.567 3.5-3.5 3.5z" fill-rule="evenodd"/></svg>
+          <span class="nav-label">Posts</span>
+        </button>
+        <button class="nav-item" data-tab="replies" id="leftNavReplies">
+          <svg viewBox="0 0 24 24"><path d="M1.751 10c0-4.42 3.584-8 8.005-8h4.366c4.49 0 8.129 3.64 8.129 8.13 0 2.96-1.607 5.68-4.196 7.11l-8.054 4.46v-3.69h-.067c-4.49.1-8.183-3.51-8.183-8.01zm8.005-6c-3.317 0-6.005 2.69-6.005 6 0 3.37 2.77 6.08 6.138 6.01l.351-.01h1.761v2.3l5.087-2.81c1.951-1.08 3.163-3.13 3.163-5.36 0-3.39-2.744-6.13-6.129-6.13H9.756z"/></svg>
+          <span class="nav-label">Replies</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- Filters (hidden when sidebar collapses) -->
+    <div class="sidebar-filters" id="sidebarFilters">
+      <div class="search-section">
+        <div class="search-input-wrap">
+          <div class="search-icon">
+            <svg viewBox="0 0 24 24"><path d="M10.25 3.75c-3.59 0-6.5 2.91-6.5 6.5s2.91 6.5 6.5 6.5c1.795 0 3.419-.726 4.596-1.904 1.178-1.177 1.904-2.801 1.904-4.596 0-3.59-2.91-6.5-6.5-6.5zm-8.5 6.5c0-4.694 3.806-8.5 8.5-8.5s8.5 3.806 8.5 8.5c0 1.986-.682 3.815-1.814 5.272l4.771 4.771-1.414 1.414-4.771-4.771c-1.457 1.132-3.286 1.814-5.272 1.814-4.694 0-8.5-3.806-8.5-8.5z"/></svg>
+          </div>
+          <input type="search" id="searchInput" placeholder="Search all posts…">
+        </div>
+        <span id="searchCount"></span>
+      </div>
+
+      <div class="filters-section">
+        <h3>Sort &amp; Filter</h3>
+
+        <div class="sort-group">
+          <div class="sort-group-label">Sort by</div>
+          <label class="sort-option">
+            <input type="radio" name="sort" value="newest" checked> Newest first
+          </label>
+          <label class="sort-option">
+            <input type="radio" name="sort" value="oldest"> Oldest first
+          </label>
+          <label class="sort-option">
+            <input type="radio" name="sort" value="likes"> Most Liked
+          </label>
+          <label class="sort-option">
+            <input type="radio" name="sort" value="retweets"> Most Retweeted
+          </label>
+        </div>
+
+        <div class="date-group">
+          <div class="date-group-label">Date range</div>
+          <div class="date-row">
+            <div class="date-input-wrap">
+              <span class="date-input-label">From</span>
+              <input type="date" id="dateFrom">
+            </div>
+            <div class="date-input-wrap">
+              <span class="date-input-label">To</span>
+              <input type="date" id="dateTo">
+            </div>
+          </div>
+        </div>
+
+        <button id="clearFilters">Clear filters</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Center Column ── -->
+  <main class="center-column">
+    <div class="center-header">
+      <div class="center-header-text">
+        <div class="center-header-name" id="headerName"></div>
+        <div class="center-header-count" id="headerCount"></div>
+      </div>
+    </div>
+
+    <div class="profile-section" id="profileSection">
+      <!-- filled by JS -->
+    </div>
+
+    <div class="tab-bar" id="tabBar">
+      <button class="tab-btn active" data-tab="posts" id="tabPosts">
+        Posts <span class="tab-count" id="tabPostsCount"></span>
+      </button>
+      <button class="tab-btn" data-tab="replies" id="tabReplies">
+        Replies <span class="tab-count" id="tabRepliesCount"></span>
+      </button>
+      <button class="tab-btn" data-tab="search" id="tabSearch" style="display:none">
+        Search <span class="tab-count" id="tabSearchCount"></span>
+      </button>
+    </div>
+
+    <!-- Inline search/sort (visible when right sidebar is hidden) -->
+    <div class="inline-filters" id="inlineFilters">
+      <div class="inline-search-wrap">
+        <div class="inline-search-icon">
+          <svg viewBox="0 0 24 24"><path d="M10.25 3.75c-3.59 0-6.5 2.91-6.5 6.5s2.91 6.5 6.5 6.5c1.795 0 3.419-.726 4.596-1.904 1.178-1.177 1.904-2.801 1.904-4.596 0-3.59-2.91-6.5-6.5-6.5zm-8.5 6.5c0-4.694 3.806-8.5 8.5-8.5s8.5 3.806 8.5 8.5c0 1.986-.682 3.815-1.814 5.272l4.771 4.771-1.414 1.414-4.771-4.771c-1.457 1.132-3.286 1.814-5.272 1.814-4.694 0-8.5-3.806-8.5-8.5z"/></svg>
+        </div>
+        <input type="search" id="inlineSearchInput" placeholder="Search all posts…">
+      </div>
+      <select class="inline-sort-select" id="inlineSortSelect">
+        <option value="newest">Newest first</option>
+        <option value="oldest">Oldest first</option>
+        <option value="likes">Most Liked</option>
+        <option value="retweets">Most Retweeted</option>
+      </select>
+    </div>
+
+    <div id="timeline"></div>
+    <div id="scrollSentinel"></div>
+  </main>
+
+
+</div>
+
+<!-- Mobile bottom nav -->
+<nav class="bottom-nav" id="bottomNav">
+  <button class="bottom-nav-btn active" data-tab="posts" id="bottomNavPosts">
+    <svg viewBox="0 0 24 24"><path d="M12 1.696L.622 8.807l1.06 1.696L3 9.679V19.5C3 20.881 4.119 22 5.5 22h13c1.381 0 2.5-1.119 2.5-2.5V9.679l1.318.824 1.06-1.696L12 1.696z" fill-rule="evenodd"/></svg>
+    Posts
+  </button>
+  <button class="bottom-nav-btn" data-tab="replies" id="bottomNavReplies">
+    <svg viewBox="0 0 24 24"><path d="M1.751 10c0-4.42 3.584-8 8.005-8h4.366c4.49 0 8.129 3.64 8.129 8.13 0 2.96-1.607 5.68-4.196 7.11l-8.054 4.46v-3.69h-.067c-4.49.1-8.183-3.51-8.183-8.01zm8.005-6c-3.317 0-6.005 2.69-6.005 6 0 3.37 2.77 6.08 6.138 6.01l.351-.01h1.761v2.3l5.087-2.81c1.951-1.08 3.163-3.13 3.163-5.36 0-3.39-2.744-6.13-6.129-6.13H9.756z"/></svg>
+    Replies
+  </button>
+</nav>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" style="display:none;" role="dialog" aria-modal="true">
+  <button class="lightbox-close" id="lightboxClose" aria-label="Close">&times;</button>
+  <div id="lightboxContent"></div>
+</div>
+
+<script>
+'use strict';
+
+// ── Constants ──────────────────────────────────────────────────────────────
+const PAGE_SIZE = 25;
+let USERNAME    = ''; // Set from tweets.json in init()
+const OEMBED_DELAY = 120; // ms between oembed requests
+
+// ── State ──────────────────────────────────────────────────────────────────
+let allTweets    = [];
+let byId         = {};
+let continuationIds = new Set();
+let childrenOf   = {}; // tweet id → array of continuation children, built in init()
+let postsBase    = []; // root tweets (no reply_to OR self-thread root)
+let repliesBase  = []; // replies to other people
+
+let currentTab   = 'posts';
+let sortBy       = 'newest';
+let dateFrom     = null;
+let dateTo       = null;
+let searchQuery  = '';
+
+let visibleCount = PAGE_SIZE;
+let account      = {};
+let stats        = {};
+
+// ── Utility ───────────────────────────────────────────────────────────────
+function fmt(n) {
+  if (n == null) return '0';
+  return Number(n).toLocaleString();
+}
+
+function fmtDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
+    timeZoneName: 'short'
+  });
+}
+
+function fmtJoined(iso) {
+  const d = new Date(iso);
+  return d.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+}
+
+function yearRange(earliest, latest) {
+  return new Date(earliest).getUTCFullYear() + '–' + new Date(latest).getUTCFullYear();
+}
+
+function tweetUrl(tweetId) {
+  return `https://x.com/${USERNAME}/status/${tweetId}`;
+}
+
+function el(tag, attrs, ...children) {
+  const e = document.createElement(tag);
+  if (attrs) {
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === 'className') e.className = v;
+      else if (k === 'innerHTML') e.innerHTML = v;
+      else if (k === 'textContent') e.textContent = v;
+      else if (v !== null && v !== undefined) e.setAttribute(k, v);
+    }
+  }
+  for (const c of children) {
+    if (c == null) continue;
+    if (typeof c === 'string') e.insertAdjacentHTML('beforeend', c);
+    else e.appendChild(c);
+  }
+  return e;
+}
+
+// ── Text rendering ────────────────────────────────────────────────────────
+// entities use Unicode code-point indices
+function renderTweetText(text, entities, mediaIndices, skipLeadingMention) {
+  const codePoints = Array.from(text); // split on code points
+  const len = codePoints.length;
+
+  // Build list of ranges to replace
+  const ranges = [];
+
+  const ents = entities || {};
+  for (const m of (ents.mentions || [])) {
+    ranges.push({ start: m.indices[0], end: m.indices[1], type: 'mention', data: m });
+  }
+  for (const u of (ents.urls || [])) {
+    ranges.push({ start: u.indices[0], end: u.indices[1], type: 'url', data: u });
+  }
+  for (const h of (ents.hashtags || [])) {
+    ranges.push({ start: h.indices[0], end: h.indices[1], type: 'hashtag', data: h });
+  }
+  // Strip media placeholders from text
+  for (const idx of (mediaIndices || [])) {
+    ranges.push({ start: idx[0], end: idx[1], type: 'media', data: null });
+  }
+
+  // Sort by start
+  ranges.sort((a, b) => a.start - b.start);
+
+  // Build output
+  let out = '';
+  let cursor = 0;
+
+  for (const r of ranges) {
+    if (r.start < cursor) continue; // overlapping, skip
+    if (r.end > len) continue;
+
+    // Text before this range
+    const before = codePoints.slice(cursor, r.start).join('');
+    out += escapeHtml(before);
+
+    if (r.type === 'mention') {
+      // Skip the leading @USERNAME mention for thread continuations
+      if (skipLeadingMention && r.start === 0 && r.data.screen_name.toLowerCase() === USERNAME.toLowerCase()) {
+        // skip this mention entirely (strip it and any space after)
+        cursor = r.end;
+        // also skip a leading space or newline
+        while (cursor < len && (codePoints[cursor] === ' ' || codePoints[cursor] === '\n')) cursor++;
+        continue;
+      }
+      out += `<a href="https://x.com/${encodeURIComponent(r.data.screen_name)}" target="_blank" rel="noopener">@${escapeHtml(r.data.screen_name)}</a>`;
+    } else if (r.type === 'url') {
+      out += `<a href="${escapeHtml(r.data.expanded_url)}" target="_blank" rel="noopener">${escapeHtml(r.data.display_url)}</a>`;
+    } else if (r.type === 'hashtag') {
+      out += `<a href="https://x.com/hashtag/${encodeURIComponent(r.data.text)}" target="_blank" rel="noopener">#${escapeHtml(r.data.text)}</a>`;
+    } else if (r.type === 'media') {
+      // omit
+    }
+
+    cursor = r.end;
+  }
+
+  // Remainder
+  if (cursor < len) {
+    out += escapeHtml(codePoints.slice(cursor).join(''));
+  }
+
+  // Trim trailing whitespace
+  out = out.replace(/\s+$/, '');
+  return out;
+}
+
+function escapeHtml(s) {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ── Thread helpers ────────────────────────────────────────────────────────
+// Build chain of continuations starting from rootId
+function getThreadChain(rootId) {
+  const chain = [];
+  function walk(id) {
+    const kids = (childrenOf[id] || []).slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    for (const k of kids) { chain.push(k); walk(k.id); }
+  }
+  walk(rootId);
+  return chain;
+}
+
+// Get full text of a tweet plus its thread for searching
+function getFullThread(tweet) {
+  let text = tweet.text;
+  const chain = getThreadChain(tweet.id);
+  for (const c of chain) { text += ' ' + c.text; }
+  return text;
+}
+
+// ── Media helpers ─────────────────────────────────────────────────────────
+function mediaLocalPath(local_file) {
+  return `tweets_media/${local_file}`;
+}
+
+function buildMediaGrid(mediaList) {
+  if (!mediaList || mediaList.length === 0) return null;
+  const count = Math.min(mediaList.length, 4);
+  const grid = el('div', { className: `media-grid count-${count}` });
+
+  for (let i = 0; i < count; i++) {
+    const m = mediaList[i];
+    const item = el('div', { className: 'media-item' });
+
+    if (m.type === 'video') {
+      const vid = el('video', {
+        src: mediaLocalPath(m.local_file),
+        controls: '',
+        preload: 'metadata'
+      });
+      vid.onerror = () => { vid.src = m.remote_url; };
+      item.appendChild(vid);
+      vid.addEventListener('click', e => e.stopPropagation());
+    } else if (m.type === 'animated_gif') {
+      const vid = el('video', {
+        src: mediaLocalPath(m.local_file),
+        autoplay: '',
+        muted: '',
+        loop: '',
+        playsinline: '',
+        preload: 'metadata'
+      });
+      vid.onerror = () => { vid.src = m.remote_url; };
+      item.appendChild(vid);
+      vid.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openLightbox(m);
+      });
+    } else {
+      const img = el('img', {
+        src: mediaLocalPath(m.local_file),
+        alt: 'media',
+        loading: 'lazy'
+      });
+      img.onerror = () => { img.src = m.remote_url; };
+      img.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openLightbox(m);
+      });
+      item.appendChild(img);
+    }
+
+    grid.appendChild(item);
+  }
+  return grid;
+}
+
+// ── Lightbox ──────────────────────────────────────────────────────────────
+function openLightbox(media) {
+  const lb = document.getElementById('lightbox');
+  const lc = document.getElementById('lightboxContent');
+  lc.innerHTML = '';
+  if (media.type === 'animated_gif' || media.type === 'video') {
+    const vid = el('video', {
+      src: mediaLocalPath(media.local_file),
+      controls: '',
+      autoplay: '',
+      loop: media.type === 'animated_gif' ? '' : null,
+      muted: media.type === 'animated_gif' ? '' : null
+    });
+    vid.onerror = () => { vid.src = media.remote_url; };
+    lc.appendChild(vid);
+  } else {
+    const img = el('img', { src: mediaLocalPath(media.local_file), alt: 'media' });
+    img.onerror = () => { img.src = media.remote_url; };
+    lc.appendChild(img);
+  }
+  lb.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox() {
+  const lb = document.getElementById('lightbox');
+  lb.style.display = 'none';
+  document.getElementById('lightboxContent').innerHTML = '';
+  document.body.style.overflow = '';
+}
+
+document.getElementById('lightbox').addEventListener('click', closeLightbox);
+document.getElementById('lightboxContent').addEventListener('click', e => e.stopPropagation());
+document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeLightbox();
+});
+
+// ── oEmbed queue ──────────────────────────────────────────────────────────
+const oembedQueue = [];
+let oembedRunning = false;
+
+function queueOembed(tweetId, callback) {
+  const cacheKey = 'oembed_' + tweetId;
+  const cached = sessionStorage.getItem(cacheKey);
+  if (cached) {
+    try { callback(JSON.parse(cached)); } catch(e) { callback(null); }
+    return;
+  }
+  oembedQueue.push({ tweetId, callback, cacheKey });
+  if (!oembedRunning) drainOembedQueue();
+}
+
+function drainOembedQueue() {
+  if (oembedQueue.length === 0) { oembedRunning = false; return; }
+  oembedRunning = true;
+  const { tweetId, callback, cacheKey } = oembedQueue.shift();
+  const url = `https://publish.twitter.com/oembed?url=https://x.com/i/status/${tweetId}&omit_script=true`;
+  fetch(url)
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      const result = data ? { html: data.html, author: data.author_name } : null;
+      try { sessionStorage.setItem(cacheKey, JSON.stringify(result)); } catch(e) {}
+      callback(result);
+    })
+    .catch(() => callback(null))
+    .finally(() => {
+      setTimeout(drainOembedQueue, OEMBED_DELAY);
+    });
+}
+
+function extractOembedText(html) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  const p = tmp.querySelector('p');
+  return p ? p.textContent.trim() || null : null;
+}
+
+// ── Reply reference card ──────────────────────────────────────────────────
+function buildReplyRef(tweet) {
+  const parentId = tweet.reply_to.tweet_id;
+  const parentHandle = tweet.reply_to.screen_name;
+  const parentUrl = `https://x.com/${parentHandle}/status/${parentId}`;
+
+  const wrapper = el('div', { className: 'reply-ref' });
+  wrapper.addEventListener('click', () => window.open(parentUrl, '_blank'));
+
+  const handleEl = el('div', { className: 'reply-ref-handle', textContent: `@${parentHandle}` });
+  const textEl   = el('div', { className: 'reply-ref-text', textContent: 'Loading…' });
+  const linkEl   = el('a', {
+    className: 'reply-ref-link',
+    href: parentUrl,
+    target: '_blank',
+    rel: 'noopener',
+    textContent: 'View original post on X ↗'
+  });
+  linkEl.addEventListener('click', e => e.stopPropagation());
+
+  wrapper.appendChild(handleEl);
+  wrapper.appendChild(textEl);
+  wrapper.appendChild(linkEl);
+
+  // Use intersection observer to lazy-fetch oembed
+  const obs = new IntersectionObserver((entries, observer) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) {
+        observer.disconnect();
+        queueOembed(parentId, (data) => {
+          const extracted = data && data.html ? extractOembedText(data.html) : null;
+          if (extracted) {
+            textEl.textContent = extracted;
+            textEl.classList.remove('reply-ref-unavailable');
+          } else {
+            textEl.textContent = 'Tweet unavailable';
+            textEl.classList.add('reply-ref-unavailable');
+          }
+        });
+      }
+    }
+  }, { rootMargin: '200px' });
+  obs.observe(wrapper);
+
+  return wrapper;
+}
+
+// ── Permalink ─────────────────────────────────────────────────────────────
+function buildPermalinkIcon(tweetId) {
+  const span = document.createElement('span');
+  span.className = 'tweet-permalink-icon';
+  span.title = 'Copy link';
+  span.innerHTML = `<svg viewBox="0 0 24 24"><path d="M11.96 14.945c-.067 0-.136-.01-.203-.027-1.13-.318-2.097-1.019-2.73-1.985-1.392-2.084-.949-4.878 1.01-6.43l3.401-2.997c1.958-1.552 4.812-1.177 6.2 1.012.306.476.499.996.591 1.54.168 1.011-.044 2.022-.609 2.854-.22.33-.487.65-.793.965-.606.606-1.534.53-2.033-.18a1.514 1.514 0 0 1 .309-2.065c.275-.195.543-.44.79-.76.41-.547.568-1.21.457-1.872-.108-.65-.447-1.21-.963-1.59-1.013-.736-2.44-.491-3.326.465l-3.401 2.997c-.887.956-.988 2.39-.25 3.457.735 1.065 2.032 1.36 3.026.765.304-.185.577-.434.815-.737.43-.55 1.276-.622 1.797-.154.427.388.494 1.04.178 1.52-.284.434-.655.816-1.099 1.139-.576.413-1.215.655-1.88.735-.2.024-.4.036-.597.036z"/><path d="M12.04 9.055c.067 0 .136.01.203.027 1.13.318 2.097 1.019 2.73 1.985 1.392 2.084.949 4.878-1.01 6.43l-3.401 2.997c-1.958 1.552-4.812 1.177-6.2-1.012-.306-.476-.499-.996-.591-1.54-.168-1.011.044-2.022.609-2.854.22-.33.487-.65.793-.965.606-.606 1.534-.53 2.033.18a1.514 1.514 0 0 1-.309 2.065c-.275.195-.543.44-.79.76-.41.547-.568 1.21-.457 1.872.108.65.447 1.21.963 1.59 1.013.736 2.44.491 3.326-.465l3.401-2.997c.887-.956.988-2.39.25-3.457-.735-1.065-2.032-1.36-3.026-.765-.304.185-.577.434-.815.737-.43.55-1.276.622-1.797.154a1.279 1.279 0 0 1-.178-1.52c.284-.434.655-.816 1.099-1.139.576-.413 1.215-.655 1.88-.735.2-.024.4-.036.597-.036z"/></svg>`;
+
+  let copiedLabel = null;
+
+  span.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const url = location.origin + location.pathname + '#tweet-' + tweetId;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch(err) {
+      // Fallback
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select(); document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    if (!copiedLabel) {
+      copiedLabel = document.createElement('span');
+      copiedLabel.className = 'permalink-copied';
+      copiedLabel.textContent = '✓ Copied';
+      span.insertAdjacentElement('afterend', copiedLabel);
+    }
+    copiedLabel.style.display = 'inline';
+    setTimeout(() => { if (copiedLabel) copiedLabel.style.display = 'none'; }, 2000);
+  });
+
+  return span;
+}
+
+// ── URL card resolution ───────────────────────────────────────────────────
+// Scans all URL entities to find self-links to archived tweets (inline cards)
+// and an optional trailing external tweet link (external "View quoted tweet" card).
+// Returns the data needed to render text (with those URLs stripped) and cards.
+function resolveUrlMeta(tweet, mediaIndices) {
+  const urlEntities = (tweet.entities && tweet.entities.urls) || [];
+
+  // Self-links to archived tweets anywhere in the URL list → inline archive cards
+  const inlineQuotes = [];
+  for (const u of urlEntities) {
+    const m = u.expanded_url && u.expanded_url.match(/(?:twitter\.com|x\.com)\/(\w+)\/status\/(\d+)/);
+    if (m && m[1].toLowerCase() === USERNAME.toLowerCase()) {
+      const archivedTweet = byId[m[2]];
+      if (archivedTweet) inlineQuotes.push({ u, archivedTweet });
+    }
+  }
+
+  // Last URL as external quote card — only if it's any tweet link not already an inline archive
+  let externalQuote = null;
+  if (urlEntities.length > 0) {
+    const lastUrl = urlEntities[urlEntities.length - 1];
+    if (!inlineQuotes.some(q => q.u === lastUrl)) {
+      const m = lastUrl.expanded_url && lastUrl.expanded_url.match(/(?:twitter\.com|x\.com)\/(\w+)\/status\/(\d+)/);
+      if (m) externalQuote = { handle: m[1], tweetId: m[2], url: lastUrl.expanded_url, u: lastUrl };
+    }
+  }
+
+  // Build set of t.co URLs to strip from rendered text
+  const toStrip = new Set();
+  for (const { u } of inlineQuotes) toStrip.add(u.url);
+  if (externalQuote) toStrip.add(externalQuote.u.url);
+
+  const stripIndices = [...mediaIndices];
+  const urlsForText = [];
+  for (const u of urlEntities) {
+    if (toStrip.has(u.url)) {
+      if (u.indices) stripIndices.push(u.indices);
+    } else {
+      urlsForText.push(u);
+    }
+  }
+
+  const entitiesForText = tweet.entities
+    ? { ...tweet.entities, urls: urlsForText }
+    : tweet.entities;
+
+  return { entitiesForText, stripIndices, inlineQuotes, externalQuote };
+}
+
+function buildExternalQuoteCard(externalQuote) {
+  const qCard = el('div', { className: 'quote-tweet' });
+  qCard.style.cursor = 'pointer';
+  qCard.addEventListener('click', (e) => { if (e.target.tagName !== 'A') window.open(externalQuote.url, '_blank'); });
+
+  const handleEl = el('div', { className: 'reply-ref-handle', textContent: `@${externalQuote.handle}` });
+  const textEl   = el('div', { className: 'reply-ref-text',   textContent: 'Loading…' });
+  const linkEl   = el('a',   { className: 'reply-ref-link', href: externalQuote.url, target: '_blank', rel: 'noopener', textContent: 'View original post on X ↗' });
+  linkEl.addEventListener('click', e => e.stopPropagation());
+
+  qCard.appendChild(handleEl);
+  qCard.appendChild(textEl);
+  qCard.appendChild(linkEl);
+
+  const obs = new IntersectionObserver((entries, observer) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) {
+        observer.disconnect();
+        queueOembed(externalQuote.tweetId, (data) => {
+          const extracted = data && data.html ? extractOembedText(data.html) : null;
+          if (extracted) {
+            textEl.textContent = extracted;
+            textEl.classList.remove('reply-ref-unavailable');
+          } else {
+            textEl.textContent = 'Tweet unavailable';
+            textEl.classList.add('reply-ref-unavailable');
+          }
+        });
+      }
+    }
+  }, { rootMargin: '200px' });
+  obs.observe(qCard);
+
+  return qCard;
+}
+
+function appendQuoteCards(body, inlineQuotes, externalQuote) {
+  for (const { archivedTweet } of inlineQuotes) {
+    body.appendChild(buildArchivedQuoteCard(archivedTweet));
+  }
+  if (externalQuote) {
+    body.appendChild(buildExternalQuoteCard(externalQuote));
+  }
+}
+
+// ── Archived quote card ───────────────────────────────────────────────────
+// Renders an inline preview of a quoted tweet that exists in our archive,
+// with a click handler to navigate to it within the viewer.
+function buildArchivedQuoteCard(qt) {
+  const qCard = el('div', { className: 'quote-tweet' });
+
+  // Header: avatar + name + handle + date
+  const header = el('div', { className: 'quote-tweet-header' });
+  const avatarEl = el('img', {
+    className: 'quote-tweet-avatar',
+    src: `profile_media/${account.localAvatar}`,
+    alt: account.displayName
+  });
+  avatarEl.onerror = () => { avatarEl.src = account.avatarUrl; };
+  const nameEl   = el('span', { className: 'quote-tweet-name', textContent: account.displayName });
+  const handleEl = el('span', { className: 'quote-tweet-handle', textContent: ` @${account.username}` });
+  const dateEl   = el('span', { className: 'quote-tweet-handle', textContent: ` · ${fmtDate(qt.created_at)}` });
+  header.appendChild(avatarEl);
+  header.appendChild(nameEl);
+  header.appendChild(handleEl);
+  header.appendChild(dateEl);
+  qCard.appendChild(header);
+
+  // Text — strip media URL placeholders; also strip any trailing quote/media URL
+  const qtMediaIndices = (qt.media || []).map(m => m.indices).filter(Boolean);
+  let qtEntities = qt.entities;
+  const qtStrip = [...qtMediaIndices];
+  if (qt.entities && qt.entities.urls && qt.entities.urls.length > 0) {
+    const lastUrl = qt.entities.urls[qt.entities.urls.length - 1];
+    if (lastUrl.indices && lastUrl.expanded_url &&
+        lastUrl.expanded_url.match(/(?:twitter\.com|x\.com)\/\w+\/status\/\d+/)) {
+      qtStrip.push(lastUrl.indices);
+      qtEntities = { ...qt.entities, urls: qt.entities.urls.slice(0, -1) };
+    }
+  }
+  const qtHtml = renderTweetText(qt.text, qtEntities, qtStrip, false);
+  if (qtHtml.trim()) {
+    const textEl = el('div', { className: 'quote-tweet-text', innerHTML: qtHtml });
+    qCard.appendChild(textEl);
+  }
+
+  // First media thumbnail
+  if (qt.media && qt.media.length > 0) {
+    const m = qt.media[0];
+    const src = m.local_file ? `tweets_media/${m.local_file}` : m.remote_url;
+    if (src) {
+      const thumb = el('img', { className: 'quote-tweet-thumb', src, alt: '', loading: 'lazy' });
+      qCard.appendChild(thumb);
+    }
+  }
+
+  // Click navigates to the tweet in the archive
+  qCard.addEventListener('click', (e) => {
+    if (e.target.tagName === 'A') return;
+    // Push state without triggering hashchange; then navigate directly so
+    // handleHashNavigation runs synchronously and the scroll defer fires correctly.
+    history.pushState(null, '', '#tweet-' + qt.id);
+    handleHashNavigation();
+  });
+
+  return qCard;
+}
+
+// ── Tweet card builder ────────────────────────────────────────────────────
+function buildTweetCard(tweet) {
+
+  const card = el('article', {
+    className: 'tweet-card',
+    id: `tweet-${tweet.id}`
+  });
+
+  // Avatar column
+  const avatarCol = el('div', { className: 'tweet-avatar-col' });
+  const avatarImg = el('img', {
+    className: 'tweet-avatar',
+    src: `profile_media/${account.localAvatar}`,
+    alt: account.displayName
+  });
+  avatarImg.onerror = () => { avatarImg.src = account.avatarUrl; };
+  avatarCol.appendChild(avatarImg);
+  card.appendChild(avatarCol);
+
+  // Body
+  const body = el('div', { className: 'tweet-body' });
+
+  // Header
+  const header = el('div', { className: 'tweet-header' });
+  const nameEl  = el('span', { className: 'tweet-name', textContent: account.displayName });
+  const dotEl   = el('span', { className: 'tweet-dot', textContent: '·' });
+  const handleEl= el('span', { className: 'tweet-handle', textContent: `@${account.username}` });
+  const timeEl  = el('span', { className: 'tweet-time', textContent: fmtDate(tweet.created_at) });
+  const plIcon  = buildPermalinkIcon(tweet.id);
+
+  header.appendChild(nameEl);
+  header.appendChild(dotEl);
+  header.appendChild(handleEl);
+  header.appendChild(dotEl.cloneNode(true));
+  header.appendChild(timeEl);
+  header.appendChild(plIcon);
+  body.appendChild(header);
+
+  // Reply-to reference (for replies to OTHER people)
+  const isReplyToOther = tweet.reply_to &&
+    tweet.reply_to.screen_name &&
+    tweet.reply_to.screen_name.toLowerCase() !== USERNAME.toLowerCase();
+
+  if (isReplyToOther) {
+    body.appendChild(buildReplyRef(tweet));
+  }
+
+  // Media indices to strip from text
+  const mediaIndices = (tweet.media || []).map(m => m.indices).filter(Boolean);
+
+  // Resolve URL cards: self-archive inline cards + optional external quote card
+  const { entitiesForText, stripIndices, inlineQuotes, externalQuote } =
+    resolveUrlMeta(tweet, mediaIndices);
+
+  // Tweet text
+  const textHtml = renderTweetText(tweet.text, entitiesForText, stripIndices, false);
+  if (textHtml.trim()) {
+    body.appendChild(el('div', { className: 'tweet-text', innerHTML: textHtml }));
+  }
+
+  // Media
+  if (tweet.media && tweet.media.length > 0) {
+    const grid = buildMediaGrid(tweet.media);
+    if (grid) body.appendChild(grid);
+  }
+
+  // Inline archive cards + external quote card
+  appendQuoteCards(body, inlineQuotes, externalQuote);
+
+  // Thread continuation toggle
+  const chain = getThreadChain(tweet.id);
+  if (chain.length > 0) {
+    const toggleBtn = el('button', { className: 'thread-toggle' });
+    let expanded = false;
+    const threadContainer = el('div', { className: 'thread-continuation', style: 'display:none' });
+
+    function updateToggle() {
+      toggleBtn.textContent = expanded
+        ? 'Hide thread'
+        : `Show thread (${chain.length} more ${chain.length === 1 ? 'post' : 'posts'})`;
+    }
+    updateToggle();
+
+    toggleBtn.addEventListener('click', () => {
+      expanded = !expanded;
+      if (expanded && threadContainer.children.length === 0) {
+        // Render continuations
+        for (const ct of chain) {
+          const tt = el('div', { className: 'thread-tweet', id: 'thread-tweet-' + ct.id });
+          const ta = el('img', {
+            className: 'thread-tweet-avatar',
+            src: `profile_media/${account.localAvatar}`,
+            alt: account.displayName
+          });
+          ta.onerror = () => { ta.src = account.avatarUrl; };
+          tt.appendChild(ta);
+
+          const tb = el('div', { className: 'thread-tweet-body' });
+          const th = el('div', { className: 'thread-tweet-header' });
+          const tn = el('span', { className: 'tweet-name', textContent: account.displayName, style: 'font-size:13px' });
+          const tk = el('span', { className: 'tweet-handle', textContent: `@${account.username}`, style: 'font-size:12px' });
+          const td = el('span', { className: 'thread-tweet-time', textContent: fmtDate(ct.created_at) });
+          th.appendChild(tn);
+          th.appendChild(tk);
+          th.appendChild(td);
+          tb.appendChild(th);
+
+          const ctMediaIndices = (ct.media || []).map(m => m.indices).filter(Boolean);
+          const { entitiesForText: ctEntities, stripIndices: ctStripIndices,
+                  inlineQuotes: ctInlineQuotes, externalQuote: ctExternalQuote } =
+            resolveUrlMeta(ct, ctMediaIndices);
+
+          const ctHtml = renderTweetText(ct.text, ctEntities, ctStripIndices, true);
+          if (ctHtml.trim()) {
+            tb.appendChild(el('div', { className: 'thread-tweet-text', innerHTML: ctHtml }));
+          }
+
+          if (ct.media && ct.media.length > 0) {
+            const cg = buildMediaGrid(ct.media);
+            if (cg) tb.appendChild(cg);
+          }
+
+          appendQuoteCards(tb, ctInlineQuotes, ctExternalQuote);
+
+          tt.appendChild(tb);
+          threadContainer.appendChild(tt);
+        }
+      }
+      threadContainer.style.display = expanded ? 'block' : 'none';
+      updateToggle();
+    });
+
+    body.appendChild(toggleBtn);
+    body.appendChild(threadContainer);
+  }
+
+  // Footer
+  const footer = el('div', { className: 'tweet-footer' });
+
+  // Likes
+  const likeStat = el('div', { className: 'tweet-footer-stat' });
+  likeStat.innerHTML = `<svg viewBox="0 0 24 24"><path d="M16.697 5.5c-1.222-.06-2.679.51-3.89 2.16l-.805 1.09-.806-1.09C9.984 6.01 8.526 5.44 7.304 5.5c-1.243.07-2.349.78-2.91 1.91-.552 1.12-.633 2.78.479 4.82 1.074 1.97 3.257 4.27 7.129 6.61 3.87-2.34 6.052-4.64 7.126-6.61 1.111-2.04 1.03-3.7.477-4.82-.561-1.13-1.666-1.84-2.908-1.91zm4.187 7.69c-1.351 2.48-4.001 5.12-8.379 7.67l-.503.3-.504-.3c-4.379-2.55-7.029-5.19-8.382-7.67-1.36-2.5-1.41-5.01-.052-7.01C4.197 3.73 5.65 2.9 7.215 2.82c1.525-.07 3.14.54 4.503 2.12.33.39.66.82.982 1.31.322-.49.652-.92.983-1.31 1.363-1.58 2.978-2.19 4.503-2.12 1.565.08 3.018.91 3.877 2.38 1.359 2 1.309 4.51-.051 7.01z"/></svg>`;
+  likeStat.appendChild(document.createTextNode(' ' + fmt(tweet.metrics.likes)));
+  footer.appendChild(likeStat);
+
+  // Retweets
+  const rtStat = el('div', { className: 'tweet-footer-stat' });
+  rtStat.innerHTML = `<svg viewBox="0 0 24 24"><path d="M4.5 3.88l4.432 4.14-1.364 1.46L5.5 7.55V16c0 1.1.896 2 2 2H13v2H7.5c-2.209 0-4-1.79-4-4V7.55L1.432 9.48.068 8.02 4.5 3.88zM16.5 6H11V4h5.5c2.209 0 4 1.79 4 4v8.45l2.068-1.93 1.364 1.46L19.5 20.12l-4.432-4.14 1.364-1.46 2.068 1.93V8c0-1.1-.896-2-2-2z"/></svg>`;
+  rtStat.appendChild(document.createTextNode(' ' + fmt(tweet.metrics.retweets)));
+  footer.appendChild(rtStat);
+
+  // View on X link
+  const xLink = el('a', {
+    className: 'tweet-footer-link',
+    href: tweetUrl(tweet.id),
+    target: '_blank',
+    rel: 'noopener'
+  });
+  xLink.innerHTML = `<svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>`;
+  footer.appendChild(xLink);
+
+  body.appendChild(footer);
+  card.appendChild(body);
+
+  // Clicking the card itself (not links, buttons, media, or quote cards) selects it and sets the URL.
+  card.addEventListener('click', (e) => {
+    if (e.target.closest('a, button, video, .media-item, .quote-tweet, .reply-ref')) return;
+    history.replaceState(null, '', '#tweet-' + tweet.id);
+  });
+
+  return card;
+}
+
+// ── Sorting & filtering ───────────────────────────────────────────────────
+function applySort(tweets) {
+  const arr = [...tweets];
+  if (sortBy === 'newest') {
+    arr.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  } else if (sortBy === 'oldest') {
+    arr.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  } else if (sortBy === 'likes') {
+    arr.sort((a, b) => (b.metrics.likes - a.metrics.likes) || (new Date(b.created_at) - new Date(a.created_at)));
+  } else if (sortBy === 'retweets') {
+    arr.sort((a, b) => (b.metrics.retweets - a.metrics.retweets) || (new Date(b.created_at) - new Date(a.created_at)));
+  }
+  return arr;
+}
+
+function applyDateFilter(tweets) {
+  if (!dateFrom && !dateTo) return tweets;
+  return tweets.filter(t => {
+    const d = new Date(t.created_at);
+    if (dateFrom && d < dateFrom) return false;
+    if (dateTo) {
+      const end = new Date(dateTo);
+      end.setUTCDate(end.getUTCDate() + 1); // inclusive, UTC-consistent
+      if (d >= end) return false;
+    }
+    return true;
+  });
+}
+
+function getCurrentList() {
+  let list;
+  if (searchQuery) {
+    // Search all tweets (postsBase + repliesBase)
+    const q = searchQuery.toLowerCase();
+    const combined = [...postsBase, ...repliesBase];
+    list = combined.filter(t => {
+      return getFullThread(t).toLowerCase().includes(q);
+    });
+  } else {
+    list = currentTab === 'posts' ? [...postsBase] : [...repliesBase];
+  }
+  list = applyDateFilter(list);
+  list = applySort(list);
+  return list;
+}
+
+// ── Render timeline ───────────────────────────────────────────────────────
+function renderTimeline() {
+  const timeline = document.getElementById('timeline');
+  timeline.innerHTML = '';
+
+  const list = getCurrentList();
+  const showing = list.slice(0, visibleCount);
+
+  if (list.length === 0) {
+    timeline.appendChild(el('div', {
+      className: 'timeline-empty',
+      textContent: searchQuery ? 'No results found.' : 'No posts here.'
+    }));
+    return;
+  }
+
+  for (const tweet of showing) {
+    timeline.appendChild(buildTweetCard(tweet));
+  }
+
+  // Update header count
+  updateHeaderCount();
+}
+
+function updateHeaderCount() {
+  const list = getCurrentList();
+  const countEl = document.getElementById('headerCount');
+  if (searchQuery) {
+    countEl.textContent = `${fmt(list.length)} result${list.length !== 1 ? 's' : ''}`;
+  } else if (currentTab === 'posts') {
+    countEl.textContent = `${fmt(postsBase.length + continuationIds.size)} posts`;
+  } else {
+    countEl.textContent = `${fmt(repliesBase.length)} replies`;
+  }
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────
+function switchTab(tab) {
+  // Clicking Posts or Replies while a search is active clears the search
+  if (tab !== 'search' && searchQuery) {
+    searchQuery = '';
+    document.getElementById('searchInput').value = '';
+    document.getElementById('inlineSearchInput').value = '';
+    document.getElementById('searchCount').textContent = '';
+    document.getElementById('tabSearch').style.display = 'none';
+  }
+
+  currentTab = tab;
+  visibleCount = PAGE_SIZE;
+
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  document.querySelectorAll('.nav-item').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  document.querySelectorAll('.bottom-nav-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+
+  history.replaceState(null, '', location.pathname + location.search);
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  renderTimeline();
+}
+
+// ── Profile section ───────────────────────────────────────────────────────
+function renderProfile() {
+  const section = document.getElementById('profileSection');
+
+  // Header name
+  document.getElementById('headerName').textContent = account.displayName;
+
+  // Tab counts
+  document.getElementById('tabPostsCount').textContent =
+    `(${fmt(postsBase.length + continuationIds.size)})`;
+  document.getElementById('tabRepliesCount').textContent =
+    `(${fmt(repliesBase.length)})`;
+
+  // Profile section HTML
+  if (account.localHeader) {
+    const banner = el('img', {
+      className: 'profile-banner',
+      src: `profile_media/${account.localHeader}`,
+      alt: ''
+    });
+    banner.onerror = () => {
+      if (account.headerUrl) { banner.src = account.headerUrl; }
+      else { banner.style.display = 'none'; }
+    };
+    section.appendChild(banner);
+    section.classList.add('has-banner');
+  }
+
+  const profileTop = el('div', { className: 'profile-top' });
+  const avatar = el('img', {
+    className: 'profile-avatar',
+    src: `profile_media/${account.localAvatar}`,
+    alt: account.displayName
+  });
+  avatar.onerror = () => { avatar.src = account.avatarUrl; };
+  profileTop.appendChild(avatar);
+  section.appendChild(profileTop);
+
+  section.appendChild(el('div', { className: 'profile-name', textContent: account.displayName }));
+  section.appendChild(el('div', { className: 'profile-handle', textContent: `@${account.username}` }));
+
+  if (account.bio) {
+    section.appendChild(el('div', { className: 'profile-bio', textContent: account.bio }));
+  }
+
+  const meta = el('div', { className: 'profile-meta' });
+
+  if (account.location) {
+    const loc = el('div', { className: 'profile-meta-item' });
+    loc.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 7c-1.93 0-3.5 1.57-3.5 3.5S10.07 14 12 14s3.5-1.57 3.5-3.5S13.93 7 12 7zm0 5c-.827 0-1.5-.673-1.5-1.5S11.173 9 12 9s1.5.673 1.5 1.5S12.827 12 12 12zm0-10c-4.687 0-8.5 3.813-8.5 8.5 0 5.967 7.621 12.11 7.945 12.37l.555.43.555-.43C12.879 22.61 20.5 16.467 20.5 10.5 20.5 5.813 16.687 2 12 2zm0 18.686c-1.165-.96-6.5-5.613-6.5-10.186C5.5 6.916 8.416 4 12 4s6.5 2.916 6.5 6.5c0 4.573-5.335 9.226-6.5 10.186z"/></svg>`;
+    loc.appendChild(document.createTextNode(account.location));
+    meta.appendChild(loc);
+  }
+
+  if (account.websiteUrl) {
+    const web = el('div', { className: 'profile-meta-item' });
+    web.innerHTML = `<svg viewBox="0 0 24 24"><path d="M18.36 5.64c-1.95-1.96-5.11-1.96-7.07 0L9.88 7.05 8.46 5.64l1.42-1.42c2.73-2.73 7.16-2.73 9.9 0 2.73 2.74 2.73 7.17 0 9.9l-1.42 1.42-1.41-1.42 1.41-1.41c1.96-1.96 1.96-5.12 0-7.07zm-2.12 3.53l-7.07 7.07-1.41-1.41 7.07-7.07 1.41 1.41zm-12.02.71l1.42-1.42 1.41 1.42-1.41 1.41c-1.96 1.96-1.96 5.12 0 7.07 1.95 1.96 5.11 1.96 7.07 0l1.41-1.41 1.42 1.41-1.42 1.42c-2.73 2.73-7.16 2.73-9.9 0-2.73-2.74-2.73-7.17 0-9.9z"/></svg>`;
+    const webLink = el('a', {
+      href: account.websiteUrl,
+      target: '_blank',
+      rel: 'noopener',
+      textContent: account.websiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')
+    });
+    web.appendChild(webLink);
+    meta.appendChild(web);
+  }
+
+  if (account.joined) {
+    const joined = el('div', { className: 'profile-meta-item' });
+    joined.innerHTML = `<svg viewBox="0 0 24 24"><path d="M7 4V3h2v1h6V3h2v1h1.5C19.89 4 21 5.12 21 6.5v14c0 1.38-1.11 2.5-2.5 2.5h-13C4.11 23 3 21.88 3 20.5v-14C3 5.12 4.11 4 5.5 4H7zm0 2H5.5c-.28 0-.5.22-.5.5v14c0 .28.22.5.5.5h13c.28 0 .5-.22.5-.5v-14c0-.28-.22-.5-.5-.5H17v1h-2V6H9v1H7V6zm0 6h2v-2H7v2zm4 0h2v-2h-2v2zm4 0h2v-2h-2v2zM7 16h2v-2H7v2zm4 0h2v-2h-2v2zm4 0h2v-2h-2v2z"/></svg>`;
+    joined.appendChild(document.createTextNode('Joined ' + fmtJoined(account.joined)));
+    meta.appendChild(joined);
+  }
+
+  section.appendChild(meta);
+
+  const statsRow = el('div', { className: 'profile-stats' });
+  statsRow.innerHTML = `
+    <div class="profile-stat"><span class="profile-stat-val">${fmt(account.followerCount)}</span><span class="profile-stat-label">Followers</span></div>
+    <div class="profile-stat"><span class="profile-stat-val">${fmt(account.followingCount)}</span><span class="profile-stat-label">Following</span></div>
+    <div class="profile-stat"><span class="profile-stat-val">${fmt(stats.total)}</span><span class="profile-stat-label">Posts</span></div>
+    <div class="profile-stat"><span class="profile-stat-val">${yearRange(stats.earliest, stats.latest)}</span><span class="profile-stat-label">Active</span></div>
+  `;
+  section.appendChild(statsRow);
+
+  section.appendChild(el('div', {
+    className: 'archive-notice',
+    textContent: `This is an archive of @${account.username}'s Twitter/X account.`
+  }));
+}
+
+// ── Deep-link / hash navigation ───────────────────────────────────────────
+function handleHashNavigation() {
+  const hash = location.hash;
+  if (!hash || !hash.startsWith('#tweet-')) return;
+  const tweetId = hash.slice('#tweet-'.length);
+  const tweet = byId[tweetId];
+  if (!tweet) return;
+
+  // Determine correct tab
+  let targetTab;
+  if (continuationIds.has(tweetId)) {
+    // It's a continuation — find its root
+    const root = findThreadRoot(tweetId);
+    if (root) {
+      targetTab = postsBase.includes(root) ? 'posts' : 'replies';
+      scrollToTweetCard(root.id, tweetId, true);
+      return;
+    }
+  } else if (postsBase.includes(tweet)) {
+    targetTab = 'posts';
+  } else if (repliesBase.includes(tweet)) {
+    targetTab = 'replies';
+  } else {
+    targetTab = 'posts';
+  }
+
+  // Switch tab without re-rendering yet
+  currentTab = targetTab;
+  document.querySelectorAll('.tab-btn, .nav-item, .bottom-nav-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === targetTab);
+  });
+
+  // Make sure the tweet is in the visible window
+  const list = getCurrentList();
+  const idx = list.findIndex(t => t.id === tweetId);
+  if (idx >= 0) {
+    visibleCount = Math.max(PAGE_SIZE, idx + 1);
+  }
+
+  renderTimeline();
+
+  // 150ms gives the browser time to finish layout for all rendered cards before scrolling.
+  // behavior:'instant' forces synchronous layout at call time, avoiding animation glitches.
+  setTimeout(() => scrollToTweetCard(tweetId, null, true), 150);
+}
+
+function findThreadRoot(contId) {
+  let t = byId[contId];
+  while (t && t.reply_to) {
+    const parent = byId[t.reply_to.tweet_id];
+    if (!parent) break;
+    if (!continuationIds.has(parent.id)) return parent;
+    t = parent;
+  }
+  return t;
+}
+
+function scrollToTweetCard(tweetId, subTweetId, instant = false) {
+  const card = document.getElementById('tweet-' + tweetId);
+  if (!card) return;
+  card.scrollIntoView({ behavior: instant ? 'instant' : 'smooth', block: 'start' });
+  card.classList.add('highlighted');
+  setTimeout(() => card.classList.remove('highlighted'), 2000);
+
+  if (subTweetId) {
+    const toggleBtn = card.querySelector('.thread-toggle');
+    const needExpand = toggleBtn && toggleBtn.textContent.includes('Show');
+    if (needExpand) toggleBtn.click();
+    // After thread renders, scroll to and highlight the specific continuation tweet.
+    setTimeout(() => {
+      const subEl = document.getElementById('thread-tweet-' + subTweetId);
+      if (subEl) {
+        subEl.scrollIntoView({ behavior: 'instant', block: 'center' });
+        subEl.classList.add('highlighted');
+        setTimeout(() => subEl.classList.remove('highlighted'), 2000);
+      }
+    }, needExpand ? 60 : 0);
+  }
+}
+
+// ── Data loading & initialization ─────────────────────────────────────────
+async function init() {
+  let data;
+  try {
+    const resp = await fetch('tweets.json');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    data = await resp.json();
+  } catch (e) {
+    document.getElementById('timeline').innerHTML =
+      `<div class="timeline-empty">Error loading tweets.json: ${escapeHtml(String(e))}</div>`;
+    return;
+  }
+
+  account  = data.account;
+  stats    = data.stats;
+
+  // Set username and personalize page from account data
+  USERNAME = account.username;
+  document.title = `@${account.username} — Twitter Archive`;
+  document.querySelector('meta[name="description"]').content =
+    `Archive of @${account.username}'s Twitter/X posts — ${account.displayName}`;
+  const sidebarHandle = document.getElementById('sidebarHandle');
+  const sidebarAvatarImg = document.getElementById('sidebarAvatarImg');
+  const sidebarLogoDiv = document.querySelector('.sidebar-logo');
+  if (account.logoFile) {
+    const sidebarLogoFull = document.getElementById('sidebarLogoFull');
+    const sidebarLogoIcon = document.getElementById('sidebarLogoIcon');
+    if (sidebarLogoFull) sidebarLogoFull.src = account.logoFile;
+    if (sidebarLogoIcon) sidebarLogoIcon.src = account.logoIconFile || account.logoFile;
+    if (sidebarLogoDiv) sidebarLogoDiv.classList.add('has-logo');
+  } else {
+    if (sidebarHandle) sidebarHandle.textContent = `@${account.username}`;
+    if (sidebarAvatarImg && account.localAvatar) {
+      sidebarAvatarImg.src = `profile_media/${account.localAvatar}`;
+      sidebarAvatarImg.alt = account.displayName;
+      sidebarAvatarImg.style.display = '';
+      sidebarAvatarImg.onerror = () => { sidebarAvatarImg.src = account.avatarUrl; };
+    }
+  }
+  const faviconEl = document.getElementById('favicon');
+  if (faviconEl && account.localAvatar) faviconEl.href = `profile_media/${account.localAvatar}`;
+  allTweets = data.tweets;
+
+  // Index by id
+  for (const t of allTweets) {
+    byId[t.id] = t;
+  }
+
+  // Identify continuation IDs (self-replies where parent is in archive)
+  for (const t of allTweets) {
+    if (
+      t.reply_to &&
+      t.reply_to.screen_name &&
+      t.reply_to.screen_name.toLowerCase() === USERNAME.toLowerCase() &&
+      byId[t.reply_to.tweet_id]
+    ) {
+      continuationIds.add(t.id);
+    }
+  }
+
+  // Precompute children map for thread chain lookups
+  for (const t of allTweets) {
+    if (t.reply_to && continuationIds.has(t.id)) {
+      const pid = t.reply_to.tweet_id;
+      if (!childrenOf[pid]) childrenOf[pid] = [];
+      childrenOf[pid].push(t);
+    }
+  }
+
+  // Build postsBase: tweets where reply_to is null, OR self-reply root
+  // A root is: not a continuation, AND (no reply_to, OR reply_to is self but parent NOT in archive)
+  for (const t of allTweets) {
+    if (continuationIds.has(t.id)) continue; // skip continuations
+
+    const rt = t.reply_to;
+    if (!rt) {
+      // No reply — pure post
+      postsBase.push(t);
+    } else if (rt.screen_name && rt.screen_name.toLowerCase() === USERNAME.toLowerCase()) {
+      // Self-reply but parent not in archive (orphaned self-reply) — treat as post
+      postsBase.push(t);
+    } else {
+      // Reply to someone else
+      repliesBase.push(t);
+    }
+  }
+
+  // Render profile
+  renderProfile();
+
+  // Initial render
+  renderTimeline();
+
+  // Handle deep link
+  if (location.hash) {
+    handleHashNavigation();
+  }
+}
+
+// ── Event listeners ───────────────────────────────────────────────────────
+
+// Tab buttons (center)
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+// Nav items (left sidebar)
+document.querySelectorAll('.nav-item').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+// Bottom nav
+document.querySelectorAll('.bottom-nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+// Infinite scroll
+new IntersectionObserver((entries) => {
+  if (entries[0].isIntersecting && visibleCount < getCurrentList().length) {
+    visibleCount += PAGE_SIZE;
+    renderTimeline();
+  }
+}, { rootMargin: '300px' }).observe(document.getElementById('scrollSentinel'));
+
+// Search — triggers on Enter; clears when field is emptied
+function doSearch(query) {
+  searchQuery = query;
+  visibleCount = PAGE_SIZE;
+  const tabSearch = document.getElementById('tabSearch');
+  const countEl   = document.getElementById('searchCount');
+  if (searchQuery) {
+    currentTab = 'search';
+    tabSearch.style.display = '';
+    const results = getCurrentList();
+    const n = results.length;
+    document.getElementById('tabSearchCount').textContent = `(${fmt(n)})`;
+    countEl.textContent = `${fmt(n)} result${n !== 1 ? 's' : ''}`;
+  } else {
+    tabSearch.style.display = 'none';
+    countEl.textContent = '';
+    currentTab = 'posts';
+  }
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === currentTab);
+  });
+  renderTimeline();
+}
+
+const searchInput = document.getElementById('searchInput');
+searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doSearch(searchInput.value.trim());
+});
+searchInput.addEventListener('input', (e) => {
+  if (e.target.value === '') doSearch('');
+});
+
+// Sort
+document.querySelectorAll('input[name="sort"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    sortBy = radio.value;
+    document.getElementById('inlineSortSelect').value = sortBy;
+    visibleCount = PAGE_SIZE;
+    renderTimeline();
+  });
+});
+
+// Date from
+document.getElementById('dateFrom').addEventListener('change', (e) => {
+  dateFrom = e.target.value ? new Date(e.target.value + 'T00:00:00Z') : null;
+  visibleCount = PAGE_SIZE;
+  renderTimeline();
+});
+
+// Date to
+document.getElementById('dateTo').addEventListener('change', (e) => {
+  dateTo = e.target.value ? new Date(e.target.value + 'T00:00:00Z') : null;
+  visibleCount = PAGE_SIZE;
+  renderTimeline();
+});
+
+// Inline search — triggers on Enter; clears when field is emptied
+const inlineSearchInput = document.getElementById('inlineSearchInput');
+inlineSearchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doSearch(inlineSearchInput.value.trim());
+});
+inlineSearchInput.addEventListener('input', (e) => {
+  if (e.target.value === '') doSearch('');
+});
+
+// Inline sort
+document.getElementById('inlineSortSelect').addEventListener('change', (e) => {
+  sortBy = e.target.value;
+  const radio = document.querySelector(`input[name="sort"][value="${sortBy}"]`);
+  if (radio) radio.checked = true;
+  visibleCount = PAGE_SIZE;
+  renderTimeline();
+});
+
+// Clear filters
+document.getElementById('clearFilters').addEventListener('click', () => {
+  searchQuery = '';
+  sortBy = 'newest';
+  dateFrom = null;
+  dateTo = null;
+  visibleCount = PAGE_SIZE;
+
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchCount').textContent = '';
+  document.getElementById('dateFrom').value = '';
+  document.getElementById('dateTo').value = '';
+  document.querySelector('input[name="sort"][value="newest"]').checked = true;
+  document.getElementById('inlineSearchInput').value = '';
+  document.getElementById('inlineSortSelect').value = 'newest';
+  document.getElementById('tabSearch').style.display = 'none';
+  currentTab = 'posts';
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === 'posts');
+  });
+
+  renderTimeline();
+});
+
+// Hashchange navigation
+window.addEventListener('hashchange', handleHashNavigation);
+
+// ── Sticky offset calibration ─────────────────────────────────────────────
+// Measure the actual rendered header height and set downstream sticky tops
+function calibrateStickyOffsets() {
+  const header = document.querySelector('.center-header');
+  const tabBar = document.querySelector('.tab-bar');
+  if (!header || !tabBar) return;
+  const h = header.offsetHeight;
+  tabBar.style.top = h + 'px';
+}
+window.addEventListener('resize', calibrateStickyOffsets);
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+init().then(calibrateStickyOffsets);
+document.fonts.ready.then(calibrateStickyOffsets);
+</script>
+</body>
+</html>
